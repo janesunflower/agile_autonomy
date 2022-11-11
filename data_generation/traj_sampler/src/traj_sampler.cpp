@@ -166,6 +166,7 @@ void TrajSampler::computeCost(const double *state_array,
   accumulated_cost_array[0] = temp_sum / static_cast<double>(traj_len_);
 }
 
+// 降维，在做sampling的时候，使用具有三个控制点和统一节点向量的三次B样条曲线
 void TrajSampler::sampleAnchorPoint(const Eigen::Vector3d &ref_pos,
                                     const double &rand_theta,
                                     const double &rand_phi,
@@ -373,6 +374,7 @@ void TrajSampler::computeLabelBSplineSampling(
 
   ///////////////////////////////////////////////////////////////////////////
   // main loop for Metropolis-Hastings
+  // 随机抽样离散化（因为P分布太过复杂，无法解出），MH采样参见附录
   ///////////////////////////////////////////////////////////////////////////
   Timing<double> timing_metropolis;
   timing_metropolis.tic();
