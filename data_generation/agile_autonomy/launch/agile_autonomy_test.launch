@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="quad_name" default="hummingbird"/>
+
+    <group ns="$(arg quad_name)">
+        <!-- Trajectory Planning -->
+        <node pkg="agile_autonomy" type="agile_autonomy" name="agile_autonomy" output="screen">
+            <rosparam file="$(find agile_autonomy)/parameters/default.yaml"/>
+            <rosparam file="$(find agile_autonomy)/parameters/flightmare.yaml"/>
+            <rosparam file="$(find agile_autonomy)/parameters/mpc_params.yaml"/>
+            <rosparam file="$(find state_predictor)/parameters/hummingbird.yaml"/>
+            <param name="data_dir" value="$(find agile_autonomy)/../data"/>
+            <remap from="completed_global_plan" to="/test_primitive/completed_planning"/>
+        </node>
+    </group>
+
+</launch>

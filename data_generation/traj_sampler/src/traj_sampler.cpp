@@ -374,7 +374,8 @@ void TrajSampler::computeLabelBSplineSampling(
 
   ///////////////////////////////////////////////////////////////////////////
   // main loop for Metropolis-Hastings
-  // 随机抽样离散化（因为P分布太过复杂，无法解出），MH采样参见附录
+  // 策略：离目标越近，离障碍物越院，概率P越大，因为P分布太过复杂，无法解出，所以，采样点+cubic B-spline生成轨迹
+  // 采样频率:0.1s,总共采样5w条轨迹，分布以2、5、10的方差（每1.6w条轨迹）
   ///////////////////////////////////////////////////////////////////////////
   Timing<double> timing_metropolis;
   timing_metropolis.tic();

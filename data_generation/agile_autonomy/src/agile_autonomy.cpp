@@ -21,7 +21,7 @@ namespace agile_autonomy {
 AgileAutonomy::AgileAutonomy(const ros::NodeHandle& nh,
                              const ros::NodeHandle& pnh)
     : nh_(nh), pnh_(pnh) {
-  if (!loadParameters()) {
+  if (!loadParameters()) { //从yaml文件中下载参数
     ROS_ERROR("[%s] Failed to load all parameters",
               ros::this_node::getName().c_str());
     ros::shutdown();
@@ -66,11 +66,11 @@ AgileAutonomy::AgileAutonomy(const ros::NodeHandle& nh,
   save_timer_ = nh_.createTimer(ros::Duration(1.0 / save_freq_),
                                 &AgileAutonomy::saveLoop, this);
   sample_times_.clear();
-  for (unsigned int i = 0; i <= traj_len_; i++) {
+  for (unsigned int i = 0; i <= traj_len_; i++) { // 轨迹数量10
     sample_times_.push_back(traj_dt_ * i);
   }
   fine_sample_times_.clear();
-  for (unsigned int i = 0; i <= static_cast<int>(traj_len_ * traj_dt_ * 50);
+  for (unsigned int i = 0; i <= static_cast<int>(traj_len_ * traj_dt_ * 50); //10*0.1*50
        i++) {
     fine_sample_times_.push_back(0.02 * i);
   }
@@ -216,6 +216,9 @@ void AgileAutonomy::computeManeuver(const bool only_expert) {
     logging_helper_.newOdometryLog(curr_data_dir_ + "/odometry.csv");
     logging_helper_.saveTrajectorytoCSV(
         curr_data_dir_ + "/reference_trajectory.csv", acrobatic_trajectory_);
+
+    std::cout << "curr_data_dir_: " << curr_data_dir_ << std::endl;
+    std::cout << "===================================" << std::endl;
 
     rollout_counter_ += 1;
     reference_progress_abs_ = 0;
