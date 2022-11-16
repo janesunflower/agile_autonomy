@@ -7,6 +7,8 @@ import datetime
 
 import yaml
 
+root = os.path.abspath(os.path.dirname(os.path.dirname(__file__))) +"/"
+print("root: ", root)
 
 def create_settings(settings_yaml, mode='test'):
     setting_dict = {'train': TrainSetting,
@@ -56,15 +58,16 @@ class Settings:
             checkpoint = settings['checkpoint']
             self.resume_training = checkpoint['resume_training']
             assert isinstance(self.resume_training, bool)
-            self.resume_ckpt_file = checkpoint['resume_file']
+            self.resume_ckpt_file = root + checkpoint['resume_file']
 
             # Save a copy of the parameters for reproducibility
-            log_root = settings['log_dir']
+            log_root = settings['log_dir'] # /tmp/trash_reactivate
             if not log_root == '' and generate_log:
                 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
                 self.log_dir = os.path.join(log_root, current_time)
                 os.makedirs(self.log_dir)
-                net_file = "./src/PlannerLearning/models/nets.py"
+                # net_file = "./src/PlannerLearning/models/nets.py" # oral
+                net_file = root + "./src/PlannerLearning/models/nets.py"
                 assert os.path.isfile(net_file)
                 shutil.copy(net_file, self.log_dir)
                 shutil.copy(settings_yaml, self.log_dir)
@@ -123,7 +126,7 @@ class TestSetting(Settings):
             self.perform_inference = test_time['perform_inference']
             assert isinstance(self.execute_nw_predictions, bool)
             self.max_rollouts = test_time['max_rollouts']
-            self.expert_folder = test_time['expert_folder']
+            self.expert_folder = root + test_time['expert_folder']
             self.crashed_thr = test_time['crashed_thr']
             # Prediction speed
             self.network_frequency = test_time['network_frequency']

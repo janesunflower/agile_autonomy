@@ -224,13 +224,13 @@ class PlanLearner(object):
                                   trajectories=trajectories,
                                   sample_num=traj_num.numpy())
 
-    def inference(self, inputs):
+    def inference(self, inputs): # inputs 0 = rgb(1,1,224,224,3) + depth(1,1,224,224,3)  + imu(shape(1,1,21))
         # run time inference
-        processed_pred = self.full_post_inference(inputs).numpy()
+        processed_pred = self.full_post_inference(inputs).numpy() 
         # Assume BS = 1
         processed_pred = processed_pred[:, np.abs(processed_pred[0, :, 0]).argsort(), :]
-        alphas = np.abs(processed_pred[0, :, 0])
-        predictions = processed_pred[0, :, 1:]
+        alphas = np.abs(processed_pred[0, :, 0]) # 3
+        predictions = processed_pred[0, :, 1:] # 3*30
         return alphas, predictions
 
     @tf.function
