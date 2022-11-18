@@ -174,7 +174,7 @@ class Trainer():
                         os.system(move_string)
                     else:
                         print("Rollout dir is {}".format(rollout_dir))
-                        shutil.rmtree(rollout_dir)
+                        shutil.rmtree(rollout_dir) # 删除/data数据
                     # Save latest version of report buffer
                     with open(output_file_buffer, 'w') as fout:
                         json.dump(report_buffer, fout)

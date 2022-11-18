@@ -7,11 +7,11 @@ general:
   test_time_max_z: 30.0
   test_time_min_z: 1.0
 maneuver:
-  length_straight: 40.0
+  length_straight: 40.0 # 飞行距离，-20到20
   maneuver_velocity: 7.
-trajectory:
-  traj_len: 10
-  traj_dt: 0.1
+trajectory: 
+  traj_len: 10 # 轨迹长度
+  traj_dt: 0.1 # 
   continuity_order: 1 # 0: position, 1: velocity, 2: acceleration
   enable_yawing: true
 # everything about saving data to disk

@@ -7,7 +7,9 @@ from tensorflow.python.keras.applications import mobilenet
 
 
 def create_network(settings):
+    print("create_network 000000000000000000000000000000000")
     net = PlaNet(settings)
+    print("create_network 55555555555555555555555555555555555")
     return net
 
 
@@ -19,6 +21,7 @@ class Network(Model):
         self._create()
 
     def call(self, x):
+        print("call call call 11111111111111111111111111111111111")
         return self._internal_call(x)
 
     def _create(self):
@@ -32,9 +35,9 @@ class PlaNet(Network):
     def __init__(self, config):
         super(PlaNet, self).__init__()
         self.config = config
-        self._create(input_size=(self.config.img_height,
+        self._create(input_size=(self.config.img_height, 
                                  self.config.img_width,
-                                 3 * self.config.use_rgb + 3*self.config.use_depth))
+                                 3 * self.config.use_rgb + 3*self.config.use_depth)) # (224,224,3)
 
     def _create(self, input_size, has_bias=True):
         """Init.
@@ -106,7 +109,7 @@ class PlaNet(Network):
                                    padding='same')]
 
     def _conv_branch(self, image):
-        x = self._pf(image)
+        x = self._pf(image) # mobilenet
         for f in self.backbone:
             x = f(x)
         x = tf.reshape(x, (x.shape[0], -1, x.shape[-1]))  # (batch_size, MxM, C)
@@ -134,7 +137,8 @@ class PlaNet(Network):
         return x
 
     def _imu_branch(self, embeddings):
-        x = embeddings  # [B, seq_len, D]
+        print("imu.shape:", embeddings.shape)
+        x = embeddings  # [B, seq_len, D] 1,1,18
         for f in self.states_conv:
             x = f(x)
         x = tf.transpose(x, (0,2,1)) # (batch_size, 32, seq_len)
@@ -166,14 +170,18 @@ class PlaNet(Network):
         # One of them passed, so need to process it
         img_seq = tf.transpose(img_seq, (1, 0, 2, 3, 4))  # (seq_len, batch_size, img_height, img_width, N)
         img_embeddings = self._image_branch(img_seq)
+        print("img.size:", img_seq.shape)
+        print("img_embeddings:", img_embeddings.shape)
         return img_embeddings
 
     def _internal_call(self, inputs):
+        print("是否使用位置信息:", self.config.use_position)
         if self.config.use_position:
             imu_obs = inputs['imu']
         else:
             # always pass z
             imu_obs = inputs['imu'][:, :, 3:]
+        print("是否使用attitude信息:", self.config.use_attitude)
         if (not self.config.use_attitude):
             if self.config.use_position:
                 print("ERROR: Do not use position without attitude!")
@@ -182,9 +190,13 @@ class PlaNet(Network):
                 imu_obs = inputs['imu'][:, :, 12:] # velocity and optionally body rates
         imu_embeddings = self._imu_branch(imu_obs)
         img_embeddings = self._preprocess_frames(inputs)
+        print("imu_embeddings.shape:", imu_embeddings.shape)
+        print("img_embeddings.shape:", img_embeddings.shape)
         if img_embeddings is not None:
             total_embeddings = tf.concat((img_embeddings, imu_embeddings), axis=-1)  # [B, modes, MxM + 64]
         else:
             total_embeddings = imu_embeddings
+        print("total_embedding:", total_embeddings.shape)
         output = self._plan_branch(total_embeddings)
+        print("output", output)
         return output

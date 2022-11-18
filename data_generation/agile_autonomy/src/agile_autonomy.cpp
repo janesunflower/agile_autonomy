@@ -33,7 +33,7 @@ AgileAutonomy::AgileAutonomy(const ros::NodeHandle& nh,
   toggle_experiment_sub_ =
       nh_.subscribe("fpv_quad_looping/execute_trajectory", 1,
                     &AgileAutonomy::startExecutionCallback, this);
-  odometry_sub_ = nh_.subscribe("ground_truth/odometry", 1,
+  odometry_sub_ = nh_.subscribe("ground_truth/odometry", 1, // component_snippets.xacro gazebo发布
                                 &AgileAutonomy::odometryCallback, this,
                                 ros::TransportHints().tcpNoDelay());
   setup_logging_sub_ =
@@ -216,9 +216,6 @@ void AgileAutonomy::computeManeuver(const bool only_expert) {
     logging_helper_.newOdometryLog(curr_data_dir_ + "/odometry.csv");
     logging_helper_.saveTrajectorytoCSV(
         curr_data_dir_ + "/reference_trajectory.csv", acrobatic_trajectory_);
-
-    std::cout << "curr_data_dir_: " << curr_data_dir_ << std::endl;
-    std::cout << "===================================" << std::endl;
 
     rollout_counter_ += 1;
     reference_progress_abs_ = 0;
@@ -406,7 +403,7 @@ bool AgileAutonomy::selectBestNetworkPrediction(
 
   std::vector<quadrotor_common::Trajectory> world_trajectories;
   std::vector<double> trajectory_costs;
-  convertTrajectoriesToWorldFrame(nw_trajectories, T_W_S, prev_ref,
+  convertTrajectoriesToWorldFrame(nw_trajectories, T_W_S, prev_ref, //获取轨迹cost
                                   &world_trajectories, &trajectory_costs);
 
   // extract best trajectory
@@ -441,12 +438,11 @@ void AgileAutonomy::trajectoryCallback(
   std::vector<quadrotor_common::Trajectory> nw_trajectories;
 
   for (auto trajectory : msg->trajectories) {
-    nw_trajectories.push_back(trajectory);
+    nw_trajectories.push_back(trajectory);  // 轨迹存储 nw_trajectories
   }
 
   quadrotor_common::Trajectory traj_pred_world;
-  traj_pred_world.trajectory_type =
-      quadrotor_common::Trajectory::TrajectoryType::GENERAL;
+  traj_pred_world.trajectory_type = quadrotor_common::Trajectory::TrajectoryType::GENERAL;
   quadrotor_common::QuadStateEstimate temp_state_estimate;
   {
     std::lock_guard<std::mutex> guard(odom_mtx_);
@@ -467,7 +463,7 @@ void AgileAutonomy::trajectoryCallback(
       msg->ref_vel.linear.x, msg->ref_vel.linear.y, msg->ref_vel.linear.z);
 
   bool execute_nw = msg->execute;
-  selectBestNetworkPrediction(nw_trajectories, odom_at_inference.position,
+  selectBestNetworkPrediction(nw_trajectories, odom_at_inference.position, //获取cost最小的最优轨迹
                               odom_at_inference.orientation, &traj_pred_world);
   double red, green, blue;
   red = 0.0;
@@ -481,9 +477,10 @@ void AgileAutonomy::trajectoryCallback(
 
   TrajectoryExt traj_world_ext(traj_pred_world, FrameID::World,
                                 traj_pred_world.points.front());
-
   quadrotor_common::Trajectory network_traj;
-  traj_world_ext.getTrajectory(&network_traj);
+  traj_world_ext.getTrajectory(&network_traj);  // 10个轨迹点
+  std::cout << "traj_world_ext 000000000000000000" << std::endl;
+  std::cout << traj_world_ext.getPoints()[0].position << std::endl;
   visualizer_->visualizeTrajectory(network_traj, "selected_nw_prediction",
                                    viz_id_, red, green, blue, 1.0);
 
@@ -506,15 +503,11 @@ void AgileAutonomy::trajectoryCallback(
   traj_world_ext.enableYawing(enable_yawing_);
   traj_world_ext.resamplePointsFromPolyCoeffs();
   traj_world_ext.getTrajectory(&network_traj);
-  visualizer_->visualizeTrajectory(network_traj, "fitted_nw_prediction",
-                                   viz_id_, 0.5, 0.5, 0.0, 1.0);
-  double desired_speed =
-      std::min(temp_state_estimate.velocity.norm() + 1.0, test_time_velocity_);
-  traj_world_ext.setConstantArcLengthSpeed(
-      desired_speed, static_cast<int>(traj_len_), traj_dt_);
+  visualizer_->visualizeTrajectory(network_traj, "fitted_nw_prediction", viz_id_, 0.5, 0.5, 0.0, 1.0);
+  double desired_speed = std::min(temp_state_estimate.velocity.norm() + 1.0, test_time_velocity_);
+  traj_world_ext.setConstantArcLengthSpeed(desired_speed, static_cast<int>(traj_len_), traj_dt_);
   traj_world_ext.getTrajectory(&network_traj);
-  visualizer_->visualizeTrajectory(network_traj, "arclen_nw_prediction",
-                                   viz_id_, red, 1.0, blue, 1.0);
+  visualizer_->visualizeTrajectory(network_traj, "arclen_nw_prediction", viz_id_, red, 1.0, blue, 1.0);  // 最终行进轨迹，未来10个轨迹点
 
   viz_id_ += 1;
   if ((viz_id_ - viz_id_start_) >= num_traj_viz_) {

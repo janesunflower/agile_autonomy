@@ -34,13 +34,9 @@ void Visualizer::visualizeTrajectory(
     ros::Publisher curr_publisher, path_publisher;
     curr_publisher = nh_.advertise<visualization_msgs::MarkerArray>(
         identifier_ + "/trajectory/" + topic, 1);
-    path_publisher =
-        nh_.advertise<nav_msgs::Path>(identifier_ + "/path/" + topic, 1);
-    publishers_.insert(
-
-        std::pair<std::string, ros::Publisher>(topic, curr_publisher));
-    path_publishers_.insert(
-        std::pair<std::string, ros::Publisher>(topic, path_publisher));
+    path_publisher = nh_.advertise<nav_msgs::Path>(identifier_ + "/path/" + topic, 1);
+    publishers_.insert(std::pair<std::string, ros::Publisher>(topic, curr_publisher));
+    path_publishers_.insert(std::pair<std::string, ros::Publisher>(topic, path_publisher));
   }
 
   // actual visualization logic...

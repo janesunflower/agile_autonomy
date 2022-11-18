@@ -76,14 +76,16 @@ class PlanBase(object):
                                          Empty, self.callback_land, queue_size=1)
         self.fly_sub = rospy.Subscriber("/" + self.quad_name + "/agile_autonomy/start_flying", Bool,
                                         self.callback_fly, queue_size=1)  # Receive and fly
-        self.traj_pub = rospy.Publisher("/{}/trajectory_predicted".format(self.quad_name), MultiTrajectory,
-                                            queue_size=1)  # Stop upon some condition
+        self.traj_pub = rospy.Publisher("/{}/trajectory_predicted".format(self.quad_name), MultiTrajectory, 
+                                            queue_size=1)  # Stop upon some condition # 3 * 3*10，3条轨迹，xyz，未来10个点
         self.timer_input = rospy.Timer(rospy.Duration(1. / self.config.input_update_freq),
                                        self.update_input_queues)
         self.timer_net = rospy.Timer(rospy.Duration(1. / self.config.network_frequency),
                                      self._generate_plan)
 
     def load_trajectory(self, traj_fname):
+        print("00000000000000000")
+        print("load_trajectry:", self.reference_initialized)
         self.reference_initialized = False
         traj_df = pd.read_csv(traj_fname, delimiter=',')
         self.reference_len = traj_df.shape[0]
@@ -114,11 +116,13 @@ class PlanBase(object):
         return
 
     def update_reference_progress(self, quad_position):
+        # print("update_reference_progress")
         reference_point = self.full_reference[self.reference_progress]
         reference_position_wf = np.array([reference_point.pose.position.x,
                                           reference_point.pose.position.y,
                                           reference_point.pose.position.z]).reshape((3, 1))
         distance = np.linalg.norm(reference_position_wf - quad_position)
+        print("self.reference_len: ", self.reference_len)
         for k in range(self.reference_progress + 1, self.reference_len):
             reference_point = self.full_reference[k]
             reference_position_wf = np.array([reference_point.pose.position.x,
@@ -128,16 +132,20 @@ class PlanBase(object):
             if next_point_distance > distance:
                 break
             else:
+                print("self.reference_progress: ", self.reference_progress)
                 self.reference_progress = k
                 distance = next_point_distance
 
     def callback_fly(self, data):
+        print("00000000000000000, callback_fly")
         # Load the trajectory at start
         if data.data:
             # Load the reference trajectory
             rollout_dir = os.path.join(self.config.expert_folder,
                                        sorted(os.listdir(self.config.expert_folder))[-1])
             # Load the reference trajectory
+            print("self.config.track_global_traj: ", self.config.track_global_traj)
+            print("self.reference_initialized: ",self.reference_initialized)
             if self.config.track_global_traj:
                 traj_fname = os.path.join(rollout_dir, "ellipsoid_trajectory.csv")
             else:
@@ -145,6 +153,7 @@ class PlanBase(object):
             print("Reading Trajectory from %s" % traj_fname)
             self.load_trajectory(traj_fname)
             self.reference_initialized = True
+            print("load轨迹后reference_initialized: ",self.reference_initialized)
             # Learning phase to test
             tf.keras.backend.set_learning_phase(0)
 
@@ -163,6 +172,7 @@ class PlanBase(object):
         metrics_report = {}
         metrics_report['expert_usage'] = self.n_times_expert / \
                                          (self.n_times_net + self.n_times_expert) * 100.
+        print("metrics_report['expert_usage']:", metrics_report['expert_usage'])                                 
         return metrics_report
 
     def callback_land(self, data):
@@ -234,8 +244,8 @@ class PlanBase(object):
         n_init_states = 21
         for _ in range(self.config.input_update_freq):
             self.img_queue.append(np.zeros_like(self.image))
-            self.depth_queue.append(np.zeros_like(self.depth))
-            self.state_queue.append(np.zeros((n_init_states,)))
+            self.depth_queue.append(np.zeros_like(self.depth)) 
+            self.state_queue.append(np.zeros((n_init_states,))) # timer.py/self._callback迭代执行
 
     def callback_start(self, data):
         print("Callback START")
@@ -250,7 +260,10 @@ class PlanBase(object):
 
     def callback_gt_odometry(self, data):
         odometry = data 
-        # 四元数转旋转矩阵，b2w，body在world下的姿态，从b系转到w系
+        # 1. pose世界系（以机体为中心，body在world下的姿态），后续使用的是以cam为中心，表示c在w的姿态，这里缺少c2w的平移矩阵T
+        # 2. angular从b系转到相机系
+        # 3. 若速度是bf，则linear从b系转到相机系，若速度是wf，则linear从b系转到世界系
+        # 四元数转旋转矩阵，b2w，body在world下的姿态，四元数和旋转矩阵都是描述三维空间位姿的方法，从四元数计算出从b转到w的旋转矩阵
         rot_body = R.from_quat([odometry.pose.pose.orientation.x, # 世界坐标系的数据
                                 odometry.pose.pose.orientation.y,
                                 odometry.pose.pose.orientation.z,
@@ -263,10 +276,10 @@ class PlanBase(object):
         # c2w，表示 相机在世界坐标系下的姿态
         rot_cam = rot_body * R_body_cam
 
-        v_B = np.array([odometry.twist.twist.linear.x,
+        v_B = np.array([odometry.twist.twist.linear.x,# body坐标系
                         odometry.twist.twist.linear.y,
                         odometry.twist.twist.linear.z]).reshape((3, 1))
-        w_B = np.array([odometry.twist.twist.angular.x,
+        w_B = np.array([odometry.twist.twist.angular.x,# body坐标系
                         odometry.twist.twist.angular.y,
                         odometry.twist.twist.angular.z]).reshape((3, 1))
         v_C = R_body_cam.as_matrix().T @ v_B
@@ -295,7 +308,7 @@ class PlanBase(object):
             odometry.twist.twist.linear.z = v_W[2]
         self.odometry = odometry 
 
-
+    # 将30转化为3*10，并填充到轨迹发布形式
     def _convert_to_traj(self, net_prediction):
         net_prediction = np.reshape(net_prediction, ((self.config.state_dim, self.config.out_seq_len)))
         pred_traj = Trajectory()
@@ -311,11 +324,11 @@ class PlanBase(object):
         return pred_traj
 
     def update_input_queues(self, data):
-        # Positions are ignored in the new network，相机坐标系得到的数据，c2w得到世界坐标系下的数据
-        imu_states = [self.odometry.pose.pose.position.x, # -20,20,0.06 ，增广矩阵
+        # Positions are ignored in the new network，世界系坐标，以无人机本体为中心，（但这里作相机系使用，以cam为中心，差了一个平移T）
+        imu_states = [self.odometry.pose.pose.position.x, # net中未使用
                       self.odometry.pose.pose.position.y, 
                       self.odometry.pose.pose.position.z] + \
-                     self.odom_rot_input # c2w的旋转矩阵，和前面配套
+                      self.odom_rot_input # c2w的旋转矩阵，相机系在世界系的姿态
 
         vel = np.array([self.odometry.twist.twist.linear.x,
                         self.odometry.twist.twist.linear.y,
@@ -326,7 +339,7 @@ class PlanBase(object):
         imu_states = imu_states + vel.tolist() # 15=12+3
 
         if self.config.use_bodyrates:
-            imu_states.extend([self.odometry.twist.twist.angular.x,
+            imu_states.extend([self.odometry.twist.twist.angular.x, # 18=15+3
                                self.odometry.twist.twist.angular.y,
                                self.odometry.twist.twist.angular.z])
 
@@ -334,13 +347,16 @@ class PlanBase(object):
             quad_position = np.array([self.odometry.pose.pose.position.x,
                                       self.odometry.pose.pose.position.y,
                                       self.odometry.pose.pose.position.z]).reshape((3, 1))
-            self.update_reference_progress(quad_position) # -20,20,0.06
+            self.update_reference_progress(quad_position) # 计算当前和期望的偏差，更新self.reference_progress
             ref_idx = np.minimum(self.reference_progress +
                                  int(self.config.future_time*50), self.reference_len - 1)
+            # print("ref_idx:", str(ref_idx))
         else:
             ref_idx = 0
+
         if self.reference_initialized:
-            reference_point = self.full_reference[ref_idx]
+            print("goal_dir,self.full_reference: %d, ref_idx: %d"%(len(self.full_reference), ref_idx))
+            reference_point = self.full_reference[ref_idx] 
             reference_position_wf = np.array([reference_point.pose.position.x,
                                               reference_point.pose.position.y,
                                               reference_point.pose.position.z]).reshape((3, 1))
@@ -353,10 +369,14 @@ class PlanBase(object):
         else:
             # Reference is not loaded at init, but we want to keep updating the list anyway
             goal_dir = np.zeros((3, 1))
+
         goal_dir = np.squeeze(goal_dir).tolist()
+        print("goal_dir: ", goal_dir) #1
 
         state_inputs = imu_states + goal_dir #21=18+3
-        self.state_queue.append(state_inputs)
+        # print("bbbbbbbbbb", len(state_inputs))#2
+
+        self.state_queue.append(state_inputs) # position3 + quad9 + linear3 + angular3 + goal_dir3
         # Prepare images
         if self.config.use_rgb:
             self.img_queue.append(self.image)
@@ -364,6 +384,7 @@ class PlanBase(object):
             self.depth_queue.append(self.depth)
 
     def adapt_reference(self, goal_dir):
+        # print("adapt_reference: ", self.config.velocity_frame)
         if self.config.velocity_frame == 'wf':
             return goal_dir
         elif self.config.velocity_frame == 'bf':
@@ -375,8 +396,8 @@ class PlanBase(object):
 
     def select_inputs_in_freq(self, input_list):
         new_list = []
-        for i in self.required_elements:
-            new_list.append(input_list[i])
+        for i in self.required_elements: # -1 
+            new_list.append(input_list[i]) # 取最后一个imu_state
         return new_list
 
     def _prepare_net_inputs(self):
@@ -399,8 +420,9 @@ class PlanBase(object):
                       'imu': np.zeros((1, self.config.seq_len, n_init_states), dtype=np.float32)}
             self.net_inputs = inputs
             return
-        state_inputs = np.stack(self.select_inputs_in_freq(self.state_queue), axis=0)
-        state_inputs = np.array(state_inputs, dtype=np.float32)
+
+        state_inputs = np.stack(self.select_inputs_in_freq(self.state_queue), axis=0) # 取第一个odom，数据倒序存，取第-1条，self.state_queue=15*21, state_inputs = 21
+        state_inputs = np.array(state_inputs, dtype=np.float32) # 21维
         new_dict = {'imu': np.expand_dims(state_inputs, axis=0)}
         if self.config.use_rgb:
             img_inputs = np.stack(self.select_inputs_in_freq(self.img_queue), axis=0)
@@ -431,15 +453,15 @@ class PlanBase(object):
         multi_traj.execute = net_in_control
         multi_traj.header.stamp = self.time_prediction
         multi_traj.ref_pose = self.odometry_used_for_inference.pose.pose
-        best_alpha = net_predictions[0][0]
-        for i in range(self.config.modes): # 3
+        best_alpha = net_predictions[0][0] # 碰撞概率
+        for i in range(self.config.modes): # 3 * 30
             traj_pred = net_predictions[1][i] # [0:30]
             alpha = net_predictions[0][i]
             # convert in a traj
             if i == 0 or (best_alpha / alpha > self.config.accept_thresh):
-                traj_pred = self._convert_to_traj(traj_pred)
+                traj_pred = self._convert_to_traj(traj_pred) # 30 -> 3*10，3表示xyz，未来10个点
                 multi_traj.trajectories.append(traj_pred) # position:xyz orientation:0000
-        self.traj_pub.publish(multi_traj)
+        self.traj_pub.publish(multi_traj) # 3 * 3*10，3条轨迹，xyz，未来10个点
         if net_in_control:
             self.n_times_net += 1
         else:
@@ -458,5 +480,5 @@ class PlanBase(object):
             self.callback_land(Empty())
 
         self._prepare_net_inputs()
-        results = self.learner.inference(self.net_inputs) # depth + imu
+        results = self.learner.inference(self.net_inputs) # dict，depth（224*224*3） + imu（18维，未使用position）
         self.trajectory_decision(results)
