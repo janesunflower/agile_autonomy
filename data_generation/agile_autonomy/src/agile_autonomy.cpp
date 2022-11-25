@@ -217,9 +217,6 @@ void AgileAutonomy::computeManeuver(const bool only_expert) {
     logging_helper_.saveTrajectorytoCSV(
         curr_data_dir_ + "/reference_trajectory.csv", acrobatic_trajectory_);
 
-    std::cout << "curr_data_dir_: " << curr_data_dir_ << std::endl;
-    std::cout << "===================================" << std::endl;
-
     rollout_counter_ += 1;
     reference_progress_abs_ = 0;
     viz_id_ = 10;
@@ -250,7 +247,7 @@ void AgileAutonomy::computeManeuver(const bool only_expert) {
         // we only go to kExecuteTrajectory mode if we want to execute expert
         // only else we wait for the first trajectory from the network to arrive
         // before switch to kNetwork mode
-        ROS_INFO("Switching to kExecuteExpert");                       
+        ROS_INFO("Switching to kExecuteExpert");
         state_machine_ = StateMachine::kExecuteExpert;
       } else {
         // setting the state machine to kAutopilot here reallows to switch to
