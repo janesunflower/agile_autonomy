@@ -3,3 +3,4 @@ cmake-build-debug/
 __pycache__/
 *.pyc
 ./results/*
+./data_generation/data
