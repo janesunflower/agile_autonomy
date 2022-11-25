@@ -8,7 +8,7 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 # find all open3D stuff
-message("Searching open3D in /hoem/jarvis/open3d_install/lib/cmake/")
+message("Searching open3D in /home/jarvis/open3d_install/lib/cmake/")
 find_package(Open3D HINTS /home/jarvis/open3d_install/lib/cmake/)
 list(APPEND Open3D_LIBRARIES dl)
 
