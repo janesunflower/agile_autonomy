@@ -89,16 +89,16 @@ def setup_sim(msg_handler, config):
     print("Placing quadrotor...")
     msg_handler.publish_autopilot_off()
     # get a position
-    pos_choice = np.random.choice(len(config.unity_start_pos)) # [-20,20,0,0], len=1, choice从xxx中随机抽取数字 0 
-    position = np.array(config.unity_start_pos[pos_choice]) # [-20,20,0,0]
+    pos_choice = np.random.choice(len(config.unity_start_pos))
+    position = np.array(config.unity_start_pos[pos_choice])
     # No yawing possible for trajectory generation
-    start_quaternion = Quaternion(axis=[0,0,1], angle=position[-1]).elements # array([1，0，0，0])
-    # 调用指定的带参数的service服务，rosservice type <service> | rossrv show 查看服务信息
+    start_quaternion = Quaternion(axis=[0,0,1], angle=position[-1]).elements
+
     start_string = "rosservice call /gazebo/set_model_state " + \
      "'{model_state: { model_name: hummingbird, pose: { position: { x: %f, y: %f ,z: %f }, " % (position[0],position[1],position[2]) + \
      "orientation: {x: %f, y: %f, z: %f, w: %f}}, " % (start_quaternion[1],start_quaternion[2],start_quaternion[3],start_quaternion[0]) + \
      "twist:{ linear: {x: 0.0 , y: 0 ,z: 0 } , angular: { x: 0.0 , y: 0 , z: 0.0 }}, " + \
-     "reference_frame: world } }'" 
+     "reference_frame: world } }'"
 
     os.system(start_string)
     return position

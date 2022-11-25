@@ -53,7 +53,7 @@ class PlanBase(object):
         # Queue Stuff
         self.img_queue = collections.deque([], maxlen=self.config.input_update_freq)
         self.depth_queue = collections.deque([], maxlen=self.config.input_update_freq)
-        self.state_queue = collections.deque([], maxlen=self.config.input_update_freq) # maxlen=15
+        self.state_queue = collections.deque([], maxlen=self.config.input_update_freq)
         self.reset_queue()
         # Init Network
         self._prepare_net_inputs()
@@ -268,12 +268,11 @@ class PlanBase(object):
                                 odometry.pose.pose.orientation.y,
                                 odometry.pose.pose.orientation.z,
                                 odometry.pose.pose.orientation.w])
-        # 四元数转旋转矩阵，c2b
+
         R_body_cam = R.from_quat([0.0,
                                   np.sin(-self.config.pitch_angle / 2.0),
                                   0.0,
                                   np.cos(-self.config.pitch_angle / 2.0)])
-        # c2w，表示 相机在世界坐标系下的姿态
         rot_cam = rot_body * R_body_cam
 
         v_B = np.array([odometry.twist.twist.linear.x,# body坐标系
@@ -289,14 +288,14 @@ class PlanBase(object):
         odometry.twist.twist.linear.y = v_C[1]
         odometry.twist.twist.linear.z = v_C[2]
         odometry.twist.twist.angular.x = w_C[0]
-        odometry.twist.twist.angular.y = w_C[1] 
-        odometry.twist.twist.angular.z = w_C[2] # 最终都要变换到相机坐标系下，相机里程计
+        odometry.twist.twist.angular.y = w_C[1]
+        odometry.twist.twist.angular.z = w_C[2]
         rot_init_body = rot_cam
-        self.odom_rot_input = rot_init_body.as_matrix().reshape((9,)).tolist() # 3*3-> [9]
+        self.odom_rot_input = rot_init_body.as_matrix().reshape((9,)).tolist()
         self.odom_rot = rot_cam.as_matrix().reshape((9,)).tolist()
 
-        # pose和angular没有歧义，linear有歧义，先判断linear是b系还是w系，如果是w系则从b2c2w，如果是b系则从b2c
-        if self.config.velocity_frame == 'wf': # world系
+
+        if self.config.velocity_frame == 'wf':
             # Convert velocity in world frame
             R_W_C = np.array(self.odom_rot).reshape((3, 3))
             v_C = np.array([odometry.twist.twist.linear.x,
@@ -306,7 +305,7 @@ class PlanBase(object):
             odometry.twist.twist.linear.x = v_W[0]
             odometry.twist.twist.linear.y = v_W[1]
             odometry.twist.twist.linear.z = v_W[2]
-        self.odometry = odometry 
+        self.odometry = odometry
 
     # 将30转化为3*10，并填充到轨迹发布形式
     def _convert_to_traj(self, net_prediction):
@@ -324,19 +323,19 @@ class PlanBase(object):
         return pred_traj
 
     def update_input_queues(self, data):
-        # Positions are ignored in the new network，世界系坐标，以无人机本体为中心，（但这里作相机系使用，以cam为中心，差了一个平移T）
-        imu_states = [self.odometry.pose.pose.position.x, # net中未使用
+        # Positions are ignored in the new network，相机坐标系得到的数据，c2w得到世界坐标系下的数据
+        imu_states = [self.odometry.pose.pose.position.x, # -20,20,0.06 ，增广矩阵
                       self.odometry.pose.pose.position.y, 
                       self.odometry.pose.pose.position.z] + \
-                      self.odom_rot_input # c2w的旋转矩阵，相机系在世界系的姿态
+                     self.odom_rot_input # c2w的旋转矩阵，和前面配套
 
         vel = np.array([self.odometry.twist.twist.linear.x,
                         self.odometry.twist.twist.linear.y,
                         self.odometry.twist.twist.linear.z])
 
         #vel = vel / np.linalg.norm(vel) * 7.
-        vel = vel.squeeze() #0,0,0
-        imu_states = imu_states + vel.tolist() # 15=12+3
+        vel = vel.squeeze()
+        imu_states = imu_states + vel.tolist()
 
         if self.config.use_bodyrates:
             imu_states.extend([self.odometry.twist.twist.angular.x, # 18=15+3
@@ -347,7 +346,7 @@ class PlanBase(object):
             quad_position = np.array([self.odometry.pose.pose.position.x,
                                       self.odometry.pose.pose.position.y,
                                       self.odometry.pose.pose.position.z]).reshape((3, 1))
-            self.update_reference_progress(quad_position) # 计算当前和期望的偏差，更新self.reference_progress
+            self.update_reference_progress(quad_position) # -20,20,0.06
             ref_idx = np.minimum(self.reference_progress +
                                  int(self.config.future_time*50), self.reference_len - 1)
             # print("ref_idx:", str(ref_idx))
@@ -374,9 +373,7 @@ class PlanBase(object):
         print("goal_dir: ", goal_dir) #1
 
         state_inputs = imu_states + goal_dir #21=18+3
-        # print("bbbbbbbbbb", len(state_inputs))#2
-
-        self.state_queue.append(state_inputs) # position3 + quad9 + linear3 + angular3 + goal_dir3
+        self.state_queue.append(state_inputs)
         # Prepare images
         if self.config.use_rgb:
             self.img_queue.append(self.image)
@@ -453,15 +450,15 @@ class PlanBase(object):
         multi_traj.execute = net_in_control
         multi_traj.header.stamp = self.time_prediction
         multi_traj.ref_pose = self.odometry_used_for_inference.pose.pose
-        best_alpha = net_predictions[0][0] # 碰撞概率
-        for i in range(self.config.modes): # 3 * 30
+        best_alpha = net_predictions[0][0]
+        for i in range(self.config.modes): # 3
             traj_pred = net_predictions[1][i] # [0:30]
             alpha = net_predictions[0][i]
             # convert in a traj
             if i == 0 or (best_alpha / alpha > self.config.accept_thresh):
-                traj_pred = self._convert_to_traj(traj_pred) # 30 -> 3*10，3表示xyz，未来10个点
+                traj_pred = self._convert_to_traj(traj_pred)
                 multi_traj.trajectories.append(traj_pred) # position:xyz orientation:0000
-        self.traj_pub.publish(multi_traj) # 3 * 3*10，3条轨迹，xyz，未来10个点
+        self.traj_pub.publish(multi_traj)
         if net_in_control:
             self.n_times_net += 1
         else:
@@ -480,5 +477,5 @@ class PlanBase(object):
             self.callback_land(Empty())
 
         self._prepare_net_inputs()
-        results = self.learner.inference(self.net_inputs) # dict，depth（224*224*3） + imu（18维，未使用position）
+        results = self.learner.inference(self.net_inputs) # depth + imu
         self.trajectory_decision(results)

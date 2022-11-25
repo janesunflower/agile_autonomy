@@ -230,8 +230,8 @@ class PlanLearner(object):
         print("Net输出结果维度: ", processed_pred.shape)
         # Assume BS = 1
         processed_pred = processed_pred[:, np.abs(processed_pred[0, :, 0]).argsort(), :]
-        alphas = np.abs(processed_pred[0, :, 0]) # 3
-        predictions = processed_pred[0, :, 1:] # 3*30
+        alphas = np.abs(processed_pred[0, :, 0])
+        predictions = processed_pred[0, :, 1:]
         return alphas, predictions
 
     @tf.function

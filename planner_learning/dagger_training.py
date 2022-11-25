@@ -7,7 +7,7 @@ import time
 import numpy as np
 import rospy
 import shutil
-from src.PlannerLearning import PlannerLearning
+from PlannerLearning import PlannerLearning
 from std_msgs.msg import Bool, Empty
 from common import setup_sim, place_quad_at_start, MessageHandler
 import json
@@ -60,7 +60,7 @@ class Trainer():
             for d in removable_rollout_folders:
                 string = "rm -rf {}".format(d)
                 os.system(string)
-        while rollout_idx < self.settings.max_rollouts: # 50次循环
+        while rollout_idx < self.settings.max_rollouts:
             if len(os.listdir(self.settings.expert_folder)) > 0:
                 rollout_dir = os.path.join(self.settings.expert_folder,
                                            sorted(os.listdir(self.settings.expert_folder))[-1])
